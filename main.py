@@ -1,5 +1,6 @@
 import json
 import logging
+import sys
 
 import VK
 import YaDisk
@@ -17,7 +18,7 @@ if __name__ == '__main__':
 
     file_log = logging.FileHandler('Log.log', 'w')
     file_log.setLevel(logging.ERROR)
-    console_out = logging.StreamHandler()
+    console_out = logging.StreamHandler(sys.stdout)
     logging.basicConfig(handlers=(file_log, console_out),
                         format='[%(asctime)s | %(name)s | %(levelname)s]: %(message)s',
                         datefmt='%m.%d.%Y %H:%M:%S',
@@ -25,4 +26,4 @@ if __name__ == '__main__':
     logger = logging.getLogger('backuper')
 
     photos = vk_user.get_all_photos()
-    ya_uploader.upload_files_tree(photos)
+    ya_uploader.upload_files_tree(photos, catalog_name='vk')

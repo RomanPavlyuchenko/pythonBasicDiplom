@@ -17,14 +17,14 @@ def _get_likes_name(data):
         likes = [i['likes'] for i in album['items']]
         cur_album['items'] = []
         for item in album['items']:
-
             if likes.count(item['likes']) == 1:
-                cur_album['items'].append({'name': str(item['likes']), 'url': item['url']})
+                cur_album['items'].append({'name': str(item['likes']), 'url': item['url'], 'size': item['size']})
             else:
                 date_time = datetime.utcfromtimestamp(item['date']).strftime(' %d-%m-%Y %H.%M.%S')
                 cur_album['items'].append(
                     {'name': '{} {}'.format(item['likes'], date_time),
-                     'url': item['url']}
+                     'url': item['url'],
+                     'size': item['size']}
                 )
         photos_tree.append(cur_album)
 
@@ -38,15 +38,23 @@ def _best_photos(data):
     photos_list = []
     for item in data:
         max_size = 0
-        inform = {}
+        max_url = ''
+        last_url = ''
+        size = ''
 
         for i in item['sizes']:
             curr_max = i['height'] * i['width']
+
             if curr_max > max_size:
                 max_size = curr_max
-                inform['url'] = i['url']
-        inform['date'] = item['date']
-        inform['likes'] = item['likes']['count']
+                max_url = i['url']
+                size = i['type']
+            last_url = i['url']
+            last_size = i['type']
+        if not max_url:
+            max_url = last_url
+            size = last_size
+        inform = {'url': max_url, 'date': item['date'], 'likes': item['likes']['count'], 'size': size}
 
         photos_list.append(inform)
     return photos_list
@@ -88,6 +96,9 @@ class VKUser:
         photos_list = []
 
         response = requests.get(photos_url, params={**self.params, **photos_params})
+        if response.status_code != 200 or 'error' in response.json():
+            logger.error(f'{response.json()}')
+            return []
         items = response.json()['response']['items']
         if count == 0:
             offset = 0
@@ -98,6 +109,9 @@ class VKUser:
                 sleep(0.5)
 
                 response = requests.get(photos_url, params={**self.params, **photos_params, **{'offset': offset}})
+                if response.status_code != 200 or 'error' in response.json():
+                    logger.error(f'{response.json()}')
+                    return []
                 items = response.json()['response']['items']
 
         else:
@@ -115,6 +129,9 @@ class VKUser:
                     count -= 1000
 
                 response = requests.get(photos_url, params={**self.params, **photos_params, **{'offset': offset}})
+                if response.status_code != 200 or 'error' in response.json():
+                    logger.error(f'{response.json()}')
+                    return []
                 items = response.json()['response']['items']
 
         logger.info(f'Photos from {album_id} was received')
@@ -133,6 +150,9 @@ class VKUser:
             'owner_id': owner_id
         }
         response = requests.get(album_url, params={**self.params, **album_params})
+        if response.status_code != 200 or 'error' in response.json():
+            logger.error(f'{response.json()}')
+            return []
 
         album_list = []
         for item in response.json()['response']['items']:
@@ -141,19 +161,19 @@ class VKUser:
         logger.info('album_list was received')
         return album_list
 
-    def get_all_photos(self, owner_id=None):
+    def get_all_photos(self, owner_id=None, count=0):
         """
         возвращает список всех альбомов пользователя, со всеми фото.
         """
         logger = logging.getLogger('{}.{}'.format(self.module_logger.name, 'get_all_photos'))
         logger.info('Started')
         all_photos = []
-        photos = self.get_photos(count=0, owner_id=owner_id)
+        photos = self.get_photos(count=count, owner_id=owner_id)
         all_photos.append({'folder': 'profile', 'items': photos})
         album = self.get_albums_list(owner_id)
 
         for item in album:
-            photos = self.get_photos(count=0, album_id=item['album_id'])
+            photos = self.get_photos(count=count, album_id=item['album_id'])
             all_photos.append({
                 'folder': item['title'],
                 'items': photos})
